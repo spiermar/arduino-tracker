@@ -49,8 +49,6 @@ uint8_t txFailures = 0;                                       // Count of how ma
 // Feeds configuration
 Adafruit_MQTT_Publish tracker_feed = Adafruit_MQTT_Publish(&mqtt, "mspier/feeds/tracker/csv");
 
-
-
 // Halt function called when an error occurs.  Will print an error and stop execution while
 // doing a fast blink of the LED.  If the watchdog is enabled it will reset after 8 seconds.
 void halt(const __FlashStringHelper *error) {
@@ -114,7 +112,7 @@ void logTracker(float speed, float latitude, float longitude, float altitude, Ad
   p[0] = 0;
 
   // Finally publish the string to the feed.
-  Serial.print(F("Publishing tracker information: "));
+  Serial.println(F("Publishing tracker information: "));
   Serial.println(sendbuffer);
   if (!publishFeed.publish(sendbuffer)) {
     Serial.println(F("Publish failed!"));
