@@ -49,6 +49,8 @@ uint8_t txFailures = 0;                                       // Count of how ma
 // Feeds configuration
 Adafruit_MQTT_Publish tracker_feed = Adafruit_MQTT_Publish(&mqtt, "mspier/feeds/tracker/csv");
 
+
+
 // Halt function called when an error occurs.  Will print an error and stop execution while
 // doing a fast blink of the LED.  If the watchdog is enabled it will reset after 8 seconds.
 void halt(const __FlashStringHelper *error) {
@@ -71,7 +73,7 @@ void MQTT_connect() {
     return;
   }
 
-  Serial.print("Connecting to MQTT... ");
+  Serial.println("Connecting to MQTT... ");
 
   while ((ret = mqtt.connect()) != 0) { // connect will return 0 for connected
     Serial.println(mqtt.connectErrorString(ret));
@@ -179,6 +181,21 @@ void setup() {
     halt(F("MQTT connection failed, resetting..."));
   }
   Serial.println(F("MQTT Connected!"));
+
+  Watchdog.reset();
+
+  Serial.print("Initializing SD card...");
+  // On the Ethernet Shield, CS is pin 4. It's set as an output by default.
+  // Note that even if it's not used as the CS pin, the hardware SS pin
+  // (10 on most Arduino boards, 53 on the Mega) must be left as an output
+  // or the SD library functions will not work.
+   pinMode(10, OUTPUT);
+
+  if (!SD.begin(10)) {
+    Serial.println("Initialization failed!");
+    return;
+  }
+  Serial.println("Initialization done.");
 }
 
 void loop() {
