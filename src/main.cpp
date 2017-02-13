@@ -75,11 +75,11 @@ void MQTT_connect() {
 void logTracker(float speed, float latitude, float longitude, float altitude) {
   // Initialize a string buffer to hold the data that will be published.
 
-  char sendbuffer[120];
+  char sendbuffer[42];
   char *p = sendbuffer;
 
   // add speed value
-  dtostrf(speed, 2, 6, p);
+  dtostrf(speed, 2, 2, p);
   p += strlen(p);
   p[0] = ','; p++;
 
@@ -94,7 +94,7 @@ void logTracker(float speed, float latitude, float longitude, float altitude) {
   p[0] = ','; p++;
 
   // concat altitude
-  dtostrf(altitude, 2, 6, p);
+  dtostrf(altitude, 2, 2, p);
   p += strlen(p);
 
   // null terminate
