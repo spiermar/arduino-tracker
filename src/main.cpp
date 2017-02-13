@@ -25,6 +25,7 @@ const int ledPin = 6;
 #define AIO_SERVERPORT       1883  // Adafruit IO port.
 #define AIO_USERNAME         "mspier"  // Adafruit IO username (see http://accounts.adafruit.com/).
 #define AIO_KEY              "033fa997141c4230aa05dfb1c8c6bdc6"  // Adafruit IO key (see settings page at: https://io.adafruit.com/settings).
+#define AIO_FEED             "mspier/feeds/tracker/csv"
 
 #define MAX_TX_FAILURES      3  // Maximum number of publish failures in a row before resetting the whole sketch.
 
@@ -36,9 +37,6 @@ Adafruit_FONA fona = Adafruit_FONA(FONA_RST);                 // FONA library co
 Adafruit_MQTT_FONA mqtt(&fona, AIO_SERVER, AIO_SERVERPORT, AIO_USERNAME, AIO_KEY);
 
 uint8_t txFailures = 0;                                       // Count of how many publish failures have occured in a row.
-
-// Feeds configuration
-Adafruit_MQTT_Publish tracker_feed = Adafruit_MQTT_Publish(&mqtt, "mspier/feeds/tracker/csv");
 
 // Halt function called when an error occurs.  Will print an error and stop execution while
 // doing a fast blink of the LED.  If the watchdog is enabled it will reset after 8 seconds.
@@ -74,7 +72,7 @@ void MQTT_connect() {
 }
 
 // Serialize the lat, long, altitude to a CSV string that can be published to the specified feed.
-void logTracker(float speed, float latitude, float longitude, float altitude, Adafruit_MQTT_Publish& publishFeed) {
+void logTracker(float speed, float latitude, float longitude, float altitude) {
   // Initialize a string buffer to hold the data that will be published.
 
   char sendbuffer[120];
@@ -101,6 +99,9 @@ void logTracker(float speed, float latitude, float longitude, float altitude, Ad
 
   // null terminate
   p[0] = 0;
+
+  // Feeds configuration
+  Adafruit_MQTT_Publish publishFeed = Adafruit_MQTT_Publish(&mqtt, AIO_FEED);
 
   // Finally publish the string to the feed.
   Serial.println(F("Publishing tracker information: "));
@@ -164,6 +165,7 @@ void setup() {
   delay(3000);
 
   // Now make the MQTT connection.
+  Watchdog.reset();
   int8_t ret = mqtt.connect();
   if (ret != 0) {
     Serial.println(mqtt.connectErrorString(ret));
@@ -192,7 +194,7 @@ void loop() {
   fona.getBattPercent(&vbat);
 
   // Log the current location to the path feed, then reset the counter.
-  logTracker(speed_kph, latitude, longitude, altitude, tracker_feed);
+  logTracker(speed_kph, latitude, longitude, altitude);
 
   // Disable Watchdog for delay
   Watchdog.disable();
