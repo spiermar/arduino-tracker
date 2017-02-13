@@ -1,0 +1,9 @@
+[submodule "lib/Adafruit_FONA"]
+	path = lib/Adafruit_FONA
+	url = https://github.com/adafruit/Adafruit_FONA.git
+[submodule "lib/Adafruit_MQTT_Library"]
+	path = lib/Adafruit_MQTT_Library
+	url = https://github.com/adafruit/Adafruit_MQTT_Library.git
+[submodule "lib/Adafruit_SleepyDog"]
+	path = lib/Adafruit_SleepyDog
+	url = https://github.com/adafruit/Adafruit_SleepyDog.git
