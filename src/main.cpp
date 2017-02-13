@@ -8,16 +8,9 @@
 #include "Adafruit_FONA.h"
 #include "Adafruit_MQTT.h"
 #include "Adafruit_MQTT_FONA.h"
-#include <Wire.h>
-#include <RTClib.h>
-#include <SPI.h>
-#include <SD.h>
 
 // Alarm pins
 const int ledPin = 6;
-
-// Latitude & longitude for distance measurement
-float latitude, longitude, speed_kph, heading, altitude;
 
 // FONA pins configuration
 #define FONA_RX              2   // FONA serial RX pin (pin 2 for shield).
@@ -26,14 +19,12 @@ float latitude, longitude, speed_kph, heading, altitude;
 
 // FONA GPRS configuration
 #define FONA_APN             "wholesale"  // APN used by cell data service (leave blank if unused)
-#define FONA_USERNAME        ""  // Username used by cell data service (leave blank if unused).
-#define FONA_PASSWORD        ""  // Password used by cell data service (leave blank if unused).
 
 // Adafruit IO configuration
 #define AIO_SERVER           "io.adafruit.com"  // Adafruit IO server name.
 #define AIO_SERVERPORT       1883  // Adafruit IO port.
 #define AIO_USERNAME         "mspier"  // Adafruit IO username (see http://accounts.adafruit.com/).
-#define AIO_KEY              "91ad2dfb5578457ead8c903353edd2a7"  // Adafruit IO key (see settings page at: https://io.adafruit.com/settings).
+#define AIO_KEY              "033fa997141c4230aa05dfb1c8c6bdc6"  // Adafruit IO key (see settings page at: https://io.adafruit.com/settings).
 
 #define MAX_TX_FAILURES      3  // Maximum number of publish failures in a row before resetting the whole sketch.
 
@@ -71,15 +62,15 @@ void MQTT_connect() {
     return;
   }
 
-  Serial.println("Connecting to MQTT... ");
+  Serial.println(F("Connecting to MQTT... "));
 
   while ((ret = mqtt.connect()) != 0) { // connect will return 0 for connected
     Serial.println(mqtt.connectErrorString(ret));
-    Serial.println("Retrying MQTT connection in 5 seconds...");
+    Serial.println(F("Retrying MQTT connection in 5 seconds..."));
     mqtt.disconnect();
     delay(5000);  // wait 5 seconds
   }
-  Serial.println("MQTT Connected!");
+  Serial.println(F("MQTT Connected!"));
 }
 
 // Serialize the lat, long, altitude to a CSV string that can be published to the specified feed.
@@ -158,8 +149,8 @@ void setup() {
 
   // Start the GPRS data connection.
   Watchdog.reset();
-  //fona.setGPRSNetworkSettings(F(FONA_APN));
-  fona.setGPRSNetworkSettings(F(FONA_APN), F(FONA_USERNAME), F(FONA_PASSWORD));
+  fona.setGPRSNetworkSettings(F(FONA_APN));
+  // fona.setGPRSNetworkSettings(F(FONA_APN), F(FONA_USERNAME), F(FONA_PASSWORD));
   delay(4000);
   Watchdog.reset();
   Serial.println(F("Enabling GPRS"));
@@ -179,21 +170,6 @@ void setup() {
     halt(F("MQTT connection failed, resetting..."));
   }
   Serial.println(F("MQTT Connected!"));
-
-  Watchdog.reset();
-
-  Serial.print("Initializing SD card...");
-  // On the Ethernet Shield, CS is pin 4. It's set as an output by default.
-  // Note that even if it's not used as the CS pin, the hardware SS pin
-  // (10 on most Arduino boards, 53 on the Mega) must be left as an output
-  // or the SD library functions will not work.
-   pinMode(10, OUTPUT);
-
-  if (!SD.begin(10)) {
-    Serial.println("Initialization failed!");
-    return;
-  }
-  Serial.println("Initialization done.");
 }
 
 void loop() {
