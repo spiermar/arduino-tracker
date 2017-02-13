@@ -33,3 +33,6 @@
 .piolibdeps
 .clang_complete
 .gcc-flags.json
+
+# Configuration header
+src/Arduino_Tracker.h
