@@ -34,6 +34,7 @@ void MQTT_connect() {
 
   // Stop if already connected.
   if (mqtt.connected()) {
+    Serial.println(F("MQTT already connected... "));
     return;
   }
 
@@ -125,11 +126,16 @@ void setup() {
   // Enable GPS.
   fona.enableGPS(true);
 
-  // Start the GPRS data connection.
+  // Set GPRS network settings.
   Watchdog.reset();
   fona.setGPRSNetworkSettings(F(FONA_APN));
   // fona.setGPRSNetworkSettings(F(FONA_APN), F(FONA_USERNAME), F(FONA_PASSWORD));
-  delay(4000);
+
+  // Wait a little bit to make sure settings are in effect.
+  Watchdog.reset();
+  delay(2000);
+
+  // Start the GPRS data connection.
   Watchdog.reset();
   Serial.println(F("Enabling GPRS"));
   if (!fona.enableGPRS(true)) {
@@ -162,21 +168,30 @@ void loop() {
     halt(F("Connection lost, resetting..."));
   }
 
+  // Make sure MQTT is connected. Try to connect if not.
+  Watchdog.enable(21000);
+  Watchdog.reset();
+  MQTT_connect();
+
   // Grab a GPS reading.
+  Watchdog.enable(8000);
+  Watchdog.reset();
   float latitude, longitude, speed_kph, heading, altitude;
   fona.getGPS(&latitude, &longitude, &speed_kph, &heading, &altitude);
 
   // Grab battery reading
+  Watchdog.reset();
   uint16_t vbat;
   fona.getBattPercent(&vbat);
 
   // Log the current location to the path feed, then reset the counter.
+  Watchdog.reset();
   logTracker(speed_kph, latitude, longitude, altitude);
 
   // Disable Watchdog for delay
   Watchdog.disable();
 
   // Wait 60 seconds
-  delay(60000);
+  delay(PUBLISH_INTERVAL * 60000);
 
 }

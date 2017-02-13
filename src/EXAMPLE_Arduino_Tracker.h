@@ -24,3 +24,5 @@
 #define AIO_FEED             ""
 
 #define MAX_TX_FAILURES      3  // Maximum number of publish failures in a row before resetting the whole sketch.
+
+#define PUBLISH_INTERVAL     (int)2 // Publish interval in minutes.
