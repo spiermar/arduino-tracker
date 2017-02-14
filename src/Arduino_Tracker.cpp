@@ -50,14 +50,18 @@ void MQTT_connect() {
 }
 
 // Serialize the lat, long, altitude to a CSV string that can be published to the specified feed.
-void logTracker(float speed, float latitude, float longitude, float altitude) {
+void logTracker(float speed, float latitude, float longitude, float altitude, uint16_t vbat) {
   // Initialize a string buffer to hold the data that will be published.
 
-  char sendbuffer[42];
+  char sendbuffer[48];
   char *p = sendbuffer;
 
   // add speed value
   dtostrf(speed, 2, 2, p);
+  p += strlen(p);
+
+  // add vbat value
+  sprintf (p, ":%u", vbat);
   p += strlen(p);
   p[0] = ','; p++;
 
@@ -186,7 +190,7 @@ void loop() {
 
   // Log the current location to the path feed, then reset the counter.
   Watchdog.reset();
-  logTracker(speed_kph, latitude, longitude, altitude);
+  logTracker(speed_kph, latitude, longitude, altitude, vbat);
 
   // Disable Watchdog for delay
   Watchdog.disable();
