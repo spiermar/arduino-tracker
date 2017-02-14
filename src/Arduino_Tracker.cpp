@@ -181,7 +181,7 @@ void loop() {
 
   // Wait a little bit until connection is estabilished.
   Watchdog.reset();
-  delay(3000);
+  delay(2000);
 
   // Log the current location to the path feed, then reset the counter.
   Watchdog.reset();
