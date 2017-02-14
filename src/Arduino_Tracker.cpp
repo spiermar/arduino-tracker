@@ -14,6 +14,7 @@ Adafruit_FONA fona = Adafruit_FONA(FONA_RST);                 // FONA library co
 Adafruit_MQTT_FONA mqtt(&fona, AIO_SERVER, AIO_SERVERPORT, AIO_USERNAME, AIO_KEY);
 
 uint8_t txFailures = 0;                                       // Count of how many publish failures have occured in a row.
+uint8_t mqttFailures = 0;                                     // Count of how many publish failures have occured in a row.
 
 // Halt function called when an error occurs.  Will print an error and stop execution while
 // doing a fast blink of the LED.  If the watchdog is enabled it will reset after 8 seconds.
@@ -42,11 +43,17 @@ void MQTT_connect() {
 
   while ((ret = mqtt.connect()) != 0) { // connect will return 0 for connected
     Serial.println(mqtt.connectErrorString(ret));
+    mqttFailures++;
+    // Reset everything if too many MQTT connect failures occured in a row.
+    if (mqttFailures >= MAX_MQTT_FAILURES) {
+      halt(F("Too many MQTT connect failures, resetting..."));
+    }
     Serial.println(F("Retrying MQTT connection in 5 seconds..."));
     mqtt.disconnect();
     delay(5000);  // wait 5 seconds
   }
   Serial.println(F("MQTT Connected!"));
+  mqttFailures = 0;
 }
 
 // Serialize the lat, long, altitude to a CSV string that can be published to the specified feed.
@@ -91,6 +98,10 @@ void logTracker(float speed, float latitude, float longitude, float altitude, ui
   if (!publishFeed.publish(sendbuffer)) {
     Serial.println(F("Publish failed!"));
     txFailures++;
+    // Reset everything if too many transmit failures occured in a row.
+    if (txFailures >= MAX_TX_FAILURES) {
+      halt(F("Connection lost, resetting..."));
+    }
   }
   else {
     Serial.println(F("Publish succeeded!"));
@@ -149,32 +160,12 @@ void setup() {
 
   // Wait a little bit to stabilize the connection.
   Watchdog.reset();
-  delay(3000);
-
-  // Now make the MQTT connection.
-  Watchdog.reset();
-  int8_t ret = mqtt.connect();
-  if (ret != 0) {
-    Serial.println(mqtt.connectErrorString(ret));
-    halt(F("MQTT connection failed, resetting..."));
-  }
-  Serial.println(F("MQTT Connected!"));
+  delay(2000);
 }
 
 void loop() {
-
-  // Watchdog reset at start of loop--make sure everything below takes less than 8 seconds in normal operation!
-  Watchdog.enable(8000);
-  Watchdog.reset();
-
-  // Reset everything if disconnected or too many transmit failures occured in a row.
-  if (!fona.TCPconnected() || (txFailures >= MAX_TX_FAILURES)) {
-    halt(F("Connection lost, resetting..."));
-  }
-
-  // Make sure MQTT is connected. Try to connect if not.
-  Watchdog.enable(21000);
-  Watchdog.reset();
+  // Connect to MQTT server.
+  Watchdog.disable();
   MQTT_connect();
 
   // Grab a GPS reading.
@@ -188,9 +179,17 @@ void loop() {
   uint16_t vbat;
   fona.getBattPercent(&vbat);
 
+  // Wait a little bit until connection is estabilished.
+  Watchdog.reset();
+  delay(3000);
+
   // Log the current location to the path feed, then reset the counter.
   Watchdog.reset();
   logTracker(speed_kph, latitude, longitude, altitude, vbat);
+
+  // Disconnect MQTT connection.
+  Watchdog.reset();
+  mqtt.disconnect();
 
   // Disable Watchdog for delay
   Watchdog.disable();
