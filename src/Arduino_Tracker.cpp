@@ -138,9 +138,6 @@ void setup() {
    delay(500);
   }
 
-  // Enable GPS.
-  fona.enableGPS(true);
-
   // Set GPRS network settings.
   Watchdog.reset();
   fona.setGPRSNetworkSettings(F(FONA_APN));
@@ -164,6 +161,15 @@ void setup() {
 }
 
 void loop() {
+  // Enable GPS.
+  Watchdog.enable(8000);
+  Watchdog.reset();
+  fona.enableGPS(true);
+
+  // Wait a little bit to make sure GPS is enabled.
+  Watchdog.reset();
+  delay(5000);
+
   // Connect to MQTT server.
   Watchdog.disable();
   MQTT_connect();
@@ -190,6 +196,10 @@ void loop() {
   // Disconnect MQTT connection.
   Watchdog.reset();
   mqtt.disconnect();
+
+  // Disable GPS.
+  Watchdog.reset();
+  fona.enableGPS(false);
 
   // Disable Watchdog for delay
   Watchdog.disable();
