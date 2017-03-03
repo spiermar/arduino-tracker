@@ -241,14 +241,17 @@ void loop() {
   mqtt.disconnect();
 
   // Disable GPS.
+  // TODO: Check if it was really disabled
   Watchdog.reset();
   fona.enableGPS(false);
 
   // Disable GPRS
+  // TODO: Check if it was really disabled
   Watchdog.reset();
   fona.enableGPRS(false);
 
   // Put FONA in sleep module
+  // TODO: Wait for Ok and retry
   Watchdog.reset();
   fonaSS.println("AT+CSCLK=1");
 
