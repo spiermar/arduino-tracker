@@ -24,5 +24,8 @@
 #define AIO_FEED             ""
 
 #define MAX_TX_FAILURES      3  // Maximum number of publish failures in a row before resetting the whole sketch.
+#define MAX_MQTT_FAILURES    6  // Maximum number of MQTT connect failures in a row before resetting the whole sketch.
+#define MAX_GPS_FIX_FAILURES 12  // Maximum number of GPS fix failures in a row before resetting the whole sketch.
+#define MAX_GPRS_FAILURES    6  // Maximum number of GPRS enable failures in a row before resetting the whole sketch.
 
 #define PUBLISH_INTERVAL     (int)5 // Publish interval in minutes.
