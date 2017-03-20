@@ -5,6 +5,7 @@
 #include "Adafruit_FONA.h"
 #include "Adafruit_MQTT.h"
 #include "Adafruit_MQTT_FONA.h"
+#include "SD.h"
 
 #define LEAD_PIN             6
 

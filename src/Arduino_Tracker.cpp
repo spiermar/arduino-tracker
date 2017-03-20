@@ -6,6 +6,12 @@
 // Alarm pins
 const int ledPin = LEAD_PIN;
 
+// for the data logging shield, we use digital pin 10 for the SD cs line
+const int chipSelect = 10;
+
+// the logging file
+File logfile;
+
 // FONA instance & configuration
 SoftwareSerial fonaSS = SoftwareSerial(FONA_TX, FONA_RX);     // FONA software serial connection.
 Adafruit_FONA fona = Adafruit_FONA(FONA_RST);                 // FONA library connection.
@@ -17,6 +23,9 @@ uint8_t txFailures = 0;                                       // Count of how ma
 uint8_t mqttFailures = 0;                                     // Count of how many MQTT connect failures have occured in a row.
 uint8_t gpsFixFailures = 0;                                   // Count of how many GPS fix failures have occured in a row.
 uint8_t gprsFailures = 0;                                     // Count of how many GPS fix failures have occured in a row.
+
+float latitude, longitude, speed_kph, heading, altitude;
+uint16_t vbat;
 
 // Halt function called when an error occurs.  Will print an error and stop execution while
 // doing a fast blink of the LED.  If the watchdog is enabled it will reset after 8 seconds.
@@ -34,13 +43,13 @@ void halt(const __FlashStringHelper *error) {
 
 // Function to connect and reconnect as necessary to the MQTT server.
 // Should be called in the loop function and it will take care if connecting.
-void mqttConnect() {
+int8_t mqttConnect() {
   int8_t ret;
 
   // Stop if already connected.
   if (mqtt.connected()) {
     Serial.println(F("MQTT already connected... "));
-    return;
+    return 0;
   }
 
   Serial.println(F("Connecting to MQTT... "));
@@ -50,7 +59,8 @@ void mqttConnect() {
     mqttFailures++;
     // Reset everything if too many MQTT connect failures occured in a row.
     if (mqttFailures >= MAX_MQTT_FAILURES) {
-      halt(F("Too many MQTT connect failures, resetting..."));
+      Serial.println(F("Too many MQTT connect failures, aborting..."));
+      return -1;
     }
     Serial.println(F("Retrying MQTT connection in 5 seconds..."));
     mqtt.disconnect();
@@ -58,9 +68,10 @@ void mqttConnect() {
   }
   Serial.println(F("MQTT Connected!"));
   mqttFailures = 0;
+  return 0;
 }
 
-void cellularConnect() {
+int8_t cellularConnect() {
   Watchdog.enable(8000);
   Watchdog.reset();
 
@@ -93,24 +104,27 @@ void cellularConnect() {
 
     // Reset everything if too many MQTT connect failures occured in a row.
     if (gprsFailures >= MAX_GPRS_FAILURES) {
-      halt(F("Failed to turn GPRS on, resetting..."));
+      Serial.println(F("Failed to turn GPRS on, aborting..."));
+      return -1;
     }
     Serial.println(F("Retrying GPRS in 10 seconds..."));
 
     delay(10000);  // wait 10 seconds
   }
   Serial.println(F("Connected to Cellular!"));
+
+  return 0;
 }
 
 // Serialize the lat, long, altitude to a CSV string that can be published to the specified feed.
-void logTracker(float speed, float latitude, float longitude, float altitude, uint16_t vbat) {
+int8_t mqttLog() {
   // Initialize a string buffer to hold the data that will be published.
 
   char sendbuffer[48];
   char *p = sendbuffer;
 
   // add speed value
-  dtostrf(speed, 2, 2, p);
+  dtostrf(speed_kph, 2, 2, p);
   p += strlen(p);
 
   // add vbat value
@@ -146,19 +160,55 @@ void logTracker(float speed, float latitude, float longitude, float altitude, ui
     txFailures++;
     // Reset everything if too many transmit failures occured in a row.
     if (txFailures >= MAX_TX_FAILURES) {
-      halt(F("Connection lost, resetting..."));
+      Serial.println(F("Connection lost, aborting..."));
+      return -1;
     }
   }
   else {
     Serial.println(F("Publish succeeded!"));
     txFailures = 0;
   }
+
+  return 0;
 }
 
-void getGPSFix() {
-  float latitude, longitude, speed_kph, heading, altitude;
-  uint16_t vbat;
+int8_t sdLog() {
+  // initialize the SD card
+  Serial.print(F("Initializing SD card..."));
 
+  // see if the card is present and can be initialized
+  if (!SD.begin(chipSelect)) {
+    Serial.println(F("Card failed, or not present. Aborting."));
+    // don't do anything else
+    return -1;
+  }
+
+  Serial.println(F("SD card initialized."));
+
+  // make a string for assembling the data to log:
+  String dataString = "";
+
+  // open the file. note that only one file can be open at a time,
+  // so you have to close this one before opening another.
+  logfile = SD.open("datalog.txt", FILE_WRITE);
+
+  // if the file is available, write to it:
+  if (logfile) {
+    logfile.println(dataString);
+    logfile.close();
+    // print to the serial port too:
+    Serial.println(dataString);
+  }
+  // if the file isn't open, pop up an error:
+  else {
+    Serial.println(F("Error opening datalog.txt."));
+    return -1;
+  }
+
+  return 0;
+}
+
+int8_t getGPSFix() {
   Serial.println(F("Trying to get a GPS fix... "));
 
   while (!fona.getGPS(&latitude, &longitude, &speed_kph, &heading, &altitude)) { // getGPS will return true for 3D fix
@@ -167,7 +217,8 @@ void getGPSFix() {
 
     // Reset everything if too many MQTT connect failures occured in a row.
     if (gpsFixFailures >= MAX_GPS_FIX_FAILURES) {
-      halt(F("Too many GPS fix failures, resetting..."));
+      Serial.println(F("Too many GPS fix failures, aborting..."));
+      return -1;
     }
     Serial.println(F("Retrying GPS fix in 10 seconds..."));
 
@@ -179,8 +230,7 @@ void getGPSFix() {
   // Grab battery reading
   fona.getBattPercent(&vbat);
 
-  // Log the current location to the path feed
-  logTracker(speed_kph, latitude, longitude, altitude, vbat);
+  return 0;
 }
 
 void setup() {
@@ -188,6 +238,10 @@ void setup() {
   // Initialize serial output.
   Serial.begin(115200);
   Serial.println(F("Adafruit IO & FONA808 Tracker"));
+
+  // make sure that the default chip select pin is set to
+  // output, even if you don't use it:
+  pinMode(chipSelect, OUTPUT);
 
   // Set alarm components
   pinMode(ledPin, OUTPUT);
@@ -210,12 +264,6 @@ void setup() {
 }
 
 void loop() {
-  // Connect to cellular
-  cellularConnect();
-
-  // Connect to MQTT server.
-  mqttConnect();
-
   // Use the watchdog to simplify retry logic and make things more robust.
   Watchdog.enable(8000);
 
@@ -231,7 +279,19 @@ void loop() {
   Watchdog.disable();
 
   // Grab a GPS reading.
-  getGPSFix();
+  if (!(getGPSFix() < 0)) {
+    // Log to SD card
+    // sdLog();
+
+    // Connect to cellular
+    if (!(cellularConnect() < 0)) {
+      // Connect to MQTT server.
+      if (!(mqttConnect() < 0)) {
+        // Log to MQTT
+        mqttLog();
+      }
+    }
+  }
 
   // Use the watchdog to simplify retry logic and make things more robust.
   Watchdog.enable(8000);
