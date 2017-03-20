@@ -25,6 +25,7 @@ uint8_t gpsFixFailures = 0;                                   // Count of how ma
 uint8_t gprsFailures = 0;                                     // Count of how many GPS fix failures have occured in a row.
 
 float latitude, longitude, speed_kph, heading, altitude;
+uint8_t year, month, date, hr, min, sec;
 uint16_t vbat;
 
 // Halt function called when an error occurs.  Will print an error and stop execution while
@@ -186,7 +187,39 @@ int8_t sdLog() {
   Serial.println(F("SD card initialized."));
 
   // make a string for assembling the data to log:
-  String dataString = "";
+  char dataString[64];
+  char *p = dataString;
+
+  // add date and time
+  sprintf (p, "%u-%u-%u %u:%u:%u", year, month, date, hr, min, sec);
+  p += strlen(p);
+  p[0] = ','; p++;
+
+  // add speed value
+  dtostrf(speed_kph, 2, 2, p);
+  p += strlen(p);
+
+  // add vbat value
+  sprintf (p, ":%u", vbat);
+  p += strlen(p);
+  p[0] = ','; p++;
+
+  // concat latitude
+  dtostrf(latitude, 2, 6, p);
+  p += strlen(p);
+  p[0] = ','; p++;
+
+  // concat longitude
+  dtostrf(longitude, 3, 6, p);
+  p += strlen(p);
+  p[0] = ','; p++;
+
+  // concat altitude
+  dtostrf(altitude, 2, 2, p);
+  p += strlen(p);
+
+  // null terminate
+  p[0] = 0;
 
   // open the file. note that only one file can be open at a time,
   // so you have to close this one before opening another.
@@ -229,6 +262,9 @@ int8_t getGPSFix() {
 
   // Grab battery reading
   fona.getBattPercent(&vbat);
+
+  // Grab time
+  fona.readRTC(&year, &month, &date, &hr, &min, &sec);
 
   return 0;
 }
