@@ -23,6 +23,7 @@ uint8_t txFailures = 0;                                       // Count of how ma
 uint8_t mqttFailures = 0;                                     // Count of how many MQTT connect failures have occured in a row.
 uint8_t gpsFixFailures = 0;                                   // Count of how many GPS fix failures have occured in a row.
 uint8_t gprsFailures = 0;                                     // Count of how many GPS fix failures have occured in a row.
+uint8_t loopFailures = 0;                                     // Count of how many general failures have occured in a row.
 
 float latitude, longitude, speed_kph, heading, altitude;
 uint8_t year, month, date, hr, min, sec;
@@ -173,21 +174,21 @@ int8_t mqttLog() {
   return 0;
 }
 
-int8_t sdLog() {
+void sdLog() {
   // initialize the SD card
-  Serial.print(F("Initializing SD card..."));
+  Serial.println(F("Initializing SD card..."));
 
   // see if the card is present and can be initialized
   if (!SD.begin(chipSelect)) {
     Serial.println(F("Card failed, or not present. Aborting."));
     // don't do anything else
-    return -1;
+    return;
   }
 
   Serial.println(F("SD card initialized."));
 
   // make a string for assembling the data to log:
-  char dataString[64];
+  char dataString[48];
   char *p = dataString;
 
   // add date and time
@@ -231,14 +232,11 @@ int8_t sdLog() {
     logfile.close();
     // print to the serial port too:
     Serial.println(dataString);
-  }
-  // if the file isn't open, pop up an error:
-  else {
+  } else { // if the file isn't open, pop up an error
     Serial.println(F("Error opening datalog.txt."));
-    return -1;
   }
 
-  return 0;
+  return;
 }
 
 int8_t getGPSFix() {
@@ -317,16 +315,23 @@ void loop() {
   // Grab a GPS reading.
   if (!(getGPSFix() < 0)) {
     // Log to SD card
-    // sdLog();
-
+    sdLog();
     // Connect to cellular
     if (!(cellularConnect() < 0)) {
       // Connect to MQTT server.
       if (!(mqttConnect() < 0)) {
         // Log to MQTT
-        mqttLog();
+        if (!(mqttLog() < 0)) {
+          loopFailures = 0;
+        };
+      } else {
+        loopFailures++;
       }
+    } else {
+      loopFailures++;
     }
+  } else {
+    loopFailures++;
   }
 
   // Use the watchdog to simplify retry logic and make things more robust.
@@ -353,6 +358,10 @@ void loop() {
 
   // Disable Watchdog for delay
   Watchdog.disable();
+
+  if (loopFailures >= MAX_LOOP_FAILURES) {
+    halt(F("Too many failures, resetting..."));
+  }
 
   // Wait 60 seconds
   delay(PUBLISH_INTERVAL * 60000);

@@ -6,6 +6,7 @@
 #include "Adafruit_MQTT.h"
 #include "Adafruit_MQTT_FONA.h"
 #include "SD.h"
+#include "SPI.h"
 
 #define LEAD_PIN             6
 
@@ -28,5 +29,6 @@
 #define MAX_MQTT_FAILURES    6  // Maximum number of MQTT connect failures in a row before resetting the whole sketch.
 #define MAX_GPS_FIX_FAILURES 12  // Maximum number of GPS fix failures in a row before resetting the whole sketch.
 #define MAX_GPRS_FAILURES    6  // Maximum number of GPRS enable failures in a row before resetting the whole sketch.
+#define MAX_LOOP_FAILURES    6  // Maximum number general failures in a row before resetting the whole sketch.
 
 #define PUBLISH_INTERVAL     (int)5 // Publish interval in minutes.
