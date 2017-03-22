@@ -22,7 +22,7 @@ uint8_t gprsFailures = 0;                                     // Count of how ma
 uint8_t loopFailures = 0;                                     // Count of how many general failures have occured in a row.
 
 float latitude, longitude, speed_kph, heading, altitude;
-uint8_t year, month, date, hr, min, sec;
+char currentTime[23];
 uint16_t vbat;
 
 // Halt function called when an error occurs.  Will print an error and stop execution while
@@ -84,6 +84,36 @@ int8_t cellularConnect() {
   return 0;
 }
 
+int8_t httpLog() {
+  uint16_t statuscode;
+  int16_t length;
+  char url[] = "http://api.myadventure.io/api/v1/adventure/rickshaw-run/arduino/";
+  char data[] = "lat=1";
+
+  if (!fona.HTTP_POST_start(url, F("text/plain"), (uint8_t *) data, strlen(data), &statuscode, (uint16_t *)&length)) {
+    Serial.println("Failed!");
+    return -1;
+  }
+  while (length > 0) {
+    while (fona.available()) {
+      char c = fona.read();
+
+      #if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega168__)
+      loop_until_bit_is_set(UCSR0A, UDRE0); /* Wait until data register empty. */
+      UDR0 = c;
+      #else
+      Serial.write(c);
+      #endif
+
+      length--;
+      if (!length) break;
+    }
+  }
+  fona.HTTP_POST_end();
+
+  return 0;
+}
+
 void sdLog() {
   // initialize the SD card
   Serial.println(F("Initializing SD card..."));
@@ -102,7 +132,7 @@ void sdLog() {
   char *p = sendbuffer;
 
   // add date and time
-  sprintf (p, "%u-%u-%u %u:%u:%u", year, month, date, hr, min, sec);
+  sprintf (p, "%s", currentTime);
   p += strlen(p);
   p[0] = ','; p++;
 
@@ -172,7 +202,7 @@ int8_t getGPSFix() {
   fona.getBattPercent(&vbat);
 
   // Grab time
-  fona.readRTC(&year, &month, &date, &hr, &min, &sec);
+  fona.getTime(currentTime, 23);
 
   return 0;
 }
@@ -202,6 +232,10 @@ void setup() {
   // Set GPRS network settings.
   fona.setGPRSNetworkSettings(F(FONA_APN));
   // fona.setGPRSNetworkSettings(F(FONA_APN), F(FONA_USERNAME), F(FONA_PASSWORD));
+
+  if (!fona.enableNetworkTimeSync(true)) {
+    Serial.println(F("Failed to enable network time sync."));
+  }
 
   // Wait a little bit to make sure settings are in effect.
   delay(2000);

@@ -3,8 +3,6 @@
 #include <Adafruit_SleepyDog.h>
 #include <SoftwareSerial.h>
 #include "Adafruit_FONA.h"
-#include "Adafruit_MQTT.h"
-#include "Adafruit_MQTT_FONA.h"
 #include "SD.h"
 #include "SPI.h"
 
