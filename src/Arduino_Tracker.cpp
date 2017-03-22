@@ -7,7 +7,7 @@
 const int ledPin = LEAD_PIN;
 
 // for the data logging shield, we use digital pin 10 for the SD cs line
-const int chipSelect = 10;
+const int chipSelect = CHIP_SELECT;
 
 // the logging file
 File logfile;
@@ -24,6 +24,9 @@ uint8_t loopFailures = 0;                                     // Count of how ma
 float latitude, longitude, speed_kph, heading, altitude;
 char currentTime[23];
 uint16_t vbat;
+
+// make a string for assembling the data to log:
+char sendbuffer[96];
 
 // Halt function called when an error occurs.  Will print an error and stop execution while
 // doing a fast blink of the LED.  If the watchdog is enabled it will reset after 8 seconds.
@@ -84,13 +87,56 @@ int8_t cellularConnect() {
   return 0;
 }
 
+int8_t buildSendbuffer() {
+  char *p = sendbuffer;
+
+  // add date and time
+  sprintf (p, "time=%s", currentTime);
+  p += strlen(p);
+
+  // concat latitude
+  sprintf (p, "&lat=");
+  p += strlen(p);
+  dtostrf(latitude, 2, 6, p);
+  p += strlen(p);
+
+
+  // concat longitude
+  sprintf (p, "&lon=");
+  p += strlen(p);
+  dtostrf(longitude, 3, 6, p);
+  p += strlen(p);
+
+  // add speed value
+  sprintf (p, "&spd=");
+  p += strlen(p);
+  dtostrf(speed_kph, 2, 2, p);
+  p += strlen(p);
+
+  // concat altitude
+  sprintf (p, "&alt=");
+  p += strlen(p);
+  dtostrf(altitude, 2, 2, p);
+  p += strlen(p);
+
+  // add vbat value
+  sprintf (p, "&bat=%u", vbat);
+  p += strlen(p);
+
+  // null terminate
+  p[0] = 0;
+
+  Serial.println(sendbuffer);
+
+  return 0;
+}
+
 int8_t httpLog() {
   uint16_t statuscode;
   int16_t length;
-  char url[] = "http://api.myadventure.io/api/v1/adventure/rickshaw-run/arduino/";
-  char data[] = "lat=1";
+  char url[] = HTTP_POST_URL;
 
-  if (!fona.HTTP_POST_start(url, F("text/plain"), (uint8_t *) data, strlen(data), &statuscode, (uint16_t *)&length)) {
+  if (!fona.HTTP_POST_start(url, F("text/plain"), (uint8_t *) sendbuffer, strlen(sendbuffer), &statuscode, (uint16_t *)&length)) {
     Serial.println("Failed!");
     return -1;
   }
@@ -127,41 +173,6 @@ void sdLog() {
 
   Serial.println(F("SD card initialized."));
 
-  // make a string for assembling the data to log:
-  char sendbuffer[64];
-  char *p = sendbuffer;
-
-  // add date and time
-  sprintf (p, "%s", currentTime);
-  p += strlen(p);
-  p[0] = ','; p++;
-
-  // add speed value
-  dtostrf(speed_kph, 2, 2, p);
-  p += strlen(p);
-
-  // add vbat value
-  sprintf (p, ":%u", vbat);
-  p += strlen(p);
-  p[0] = ','; p++;
-
-  // concat latitude
-  dtostrf(latitude, 2, 6, p);
-  p += strlen(p);
-  p[0] = ','; p++;
-
-  // concat longitude
-  dtostrf(longitude, 3, 6, p);
-  p += strlen(p);
-  p[0] = ','; p++;
-
-  // concat altitude
-  dtostrf(altitude, 2, 2, p);
-  p += strlen(p);
-
-  // null terminate
-  p[0] = 0;
-
   // open the file. note that only one file can be open at a time,
   // so you have to close this one before opening another.
   logfile = SD.open("datalog.txt", FILE_WRITE);
@@ -170,8 +181,6 @@ void sdLog() {
   if (logfile) {
     logfile.println(sendbuffer);
     logfile.close();
-    // print to the serial port too:
-    Serial.println(sendbuffer);
   } else { // if the file isn't open, pop up an error
     Serial.println(F("Error opening datalog.txt."));
   }
@@ -258,10 +267,14 @@ void loop() {
 
   // Grab a GPS reading.
   if (!(getGPSFix() < 0)) {
+    // Build Send Buffer
+    buildSendbuffer();
+
     // Log to SD card
     sdLog();
     // Connect to cellular
     if (!(cellularConnect() < 0)) {
+        httpLog();
         loopFailures = 0;
     } else {
       loopFailures++;
