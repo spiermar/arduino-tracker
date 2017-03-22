@@ -16,11 +16,7 @@ File logfile;
 SoftwareSerial fonaSS = SoftwareSerial(FONA_TX, FONA_RX);     // FONA software serial connection.
 Adafruit_FONA fona = Adafruit_FONA(FONA_RST);                 // FONA library connection.
 
-// Setup the FONA MQTT class by passing in the FONA class and MQTT server and login details.
-Adafruit_MQTT_FONA mqtt(&fona, AIO_SERVER, AIO_SERVERPORT, AIO_USERNAME, AIO_KEY);
-
 uint8_t txFailures = 0;                                       // Count of how many publish failures have occured in a row.
-uint8_t mqttFailures = 0;                                     // Count of how many MQTT connect failures have occured in a row.
 uint8_t gpsFixFailures = 0;                                   // Count of how many GPS fix failures have occured in a row.
 uint8_t gprsFailures = 0;                                     // Count of how many GPS fix failures have occured in a row.
 uint8_t loopFailures = 0;                                     // Count of how many general failures have occured in a row.
@@ -41,36 +37,6 @@ void halt(const __FlashStringHelper *error) {
     digitalWrite(ledPin, HIGH);
     delay(100);
   }
-}
-
-// Function to connect and reconnect as necessary to the MQTT server.
-// Should be called in the loop function and it will take care if connecting.
-int8_t mqttConnect() {
-  int8_t ret;
-
-  // Stop if already connected.
-  if (mqtt.connected()) {
-    Serial.println(F("MQTT already connected... "));
-    return 0;
-  }
-
-  Serial.println(F("Connecting to MQTT... "));
-
-  while ((ret = mqtt.connect()) != 0) { // connect will return 0 for connected
-    Serial.println(mqtt.connectErrorString(ret));
-    mqttFailures++;
-    // Reset everything if too many MQTT connect failures occured in a row.
-    if (mqttFailures >= MAX_MQTT_FAILURES) {
-      Serial.println(F("Too many MQTT connect failures, aborting..."));
-      return -1;
-    }
-    Serial.println(F("Retrying MQTT connection in 5 seconds..."));
-    mqtt.disconnect();
-    delay(5000);  // wait 5 seconds
-  }
-  Serial.println(F("MQTT Connected!"));
-  mqttFailures = 0;
-  return 0;
 }
 
 int8_t cellularConnect() {
@@ -104,7 +70,7 @@ int8_t cellularConnect() {
     Serial.println(F("Failed to turn GPRS on..."));
     gprsFailures++;
 
-    // Reset everything if too many MQTT connect failures occured in a row.
+    // Reset everything if too many GPRS connect failures occured in a row.
     if (gprsFailures >= MAX_GPRS_FAILURES) {
       Serial.println(F("Failed to turn GPRS on, aborting..."));
       return -1;
@@ -114,62 +80,6 @@ int8_t cellularConnect() {
     delay(10000);  // wait 10 seconds
   }
   Serial.println(F("Connected to Cellular!"));
-
-  return 0;
-}
-
-// Serialize the lat, long, altitude to a CSV string that can be published to the specified feed.
-int8_t mqttLog() {
-  // Initialize a string buffer to hold the data that will be published.
-
-  char sendbuffer[48];
-  char *p = sendbuffer;
-
-  // add speed value
-  dtostrf(speed_kph, 2, 2, p);
-  p += strlen(p);
-
-  // add vbat value
-  sprintf (p, ":%u", vbat);
-  p += strlen(p);
-  p[0] = ','; p++;
-
-  // concat latitude
-  dtostrf(latitude, 2, 6, p);
-  p += strlen(p);
-  p[0] = ','; p++;
-
-  // concat longitude
-  dtostrf(longitude, 3, 6, p);
-  p += strlen(p);
-  p[0] = ','; p++;
-
-  // concat altitude
-  dtostrf(altitude, 2, 2, p);
-  p += strlen(p);
-
-  // null terminate
-  p[0] = 0;
-
-  // Feeds configuration
-  Adafruit_MQTT_Publish publishFeed = Adafruit_MQTT_Publish(&mqtt, AIO_FEED);
-
-  // Finally publish the string to the feed.
-  Serial.println(F("Publishing tracker information: "));
-  Serial.println(sendbuffer);
-  if (!publishFeed.publish(sendbuffer)) {
-    Serial.println(F("Publish failed!"));
-    txFailures++;
-    // Reset everything if too many transmit failures occured in a row.
-    if (txFailures >= MAX_TX_FAILURES) {
-      Serial.println(F("Connection lost, aborting..."));
-      return -1;
-    }
-  }
-  else {
-    Serial.println(F("Publish succeeded!"));
-    txFailures = 0;
-  }
 
   return 0;
 }
@@ -188,8 +98,8 @@ void sdLog() {
   Serial.println(F("SD card initialized."));
 
   // make a string for assembling the data to log:
-  char dataString[48];
-  char *p = dataString;
+  char sendbuffer[64];
+  char *p = sendbuffer;
 
   // add date and time
   sprintf (p, "%u-%u-%u %u:%u:%u", year, month, date, hr, min, sec);
@@ -228,10 +138,10 @@ void sdLog() {
 
   // if the file is available, write to it:
   if (logfile) {
-    logfile.println(dataString);
+    logfile.println(sendbuffer);
     logfile.close();
     // print to the serial port too:
-    Serial.println(dataString);
+    Serial.println(sendbuffer);
   } else { // if the file isn't open, pop up an error
     Serial.println(F("Error opening datalog.txt."));
   }
@@ -246,7 +156,7 @@ int8_t getGPSFix() {
     Serial.println(F("Waiting for FONA GPS 3D fix..."));
     gpsFixFailures++;
 
-    // Reset everything if too many MQTT connect failures occured in a row.
+    // Reset everything if too many GPS fix failures occured in a row.
     if (gpsFixFailures >= MAX_GPS_FIX_FAILURES) {
       Serial.println(F("Too many GPS fix failures, aborting..."));
       return -1;
@@ -318,15 +228,7 @@ void loop() {
     sdLog();
     // Connect to cellular
     if (!(cellularConnect() < 0)) {
-      // Connect to MQTT server.
-      if (!(mqttConnect() < 0)) {
-        // Log to MQTT
-        if (!(mqttLog() < 0)) {
-          loopFailures = 0;
-        };
-      } else {
-        loopFailures++;
-      }
+        loopFailures = 0;
     } else {
       loopFailures++;
     }
@@ -336,10 +238,6 @@ void loop() {
 
   // Use the watchdog to simplify retry logic and make things more robust.
   Watchdog.enable(8000);
-
-  // Disconnect MQTT connection.
-  Watchdog.reset();
-  mqtt.disconnect();
 
   // Disable GPS.
   // TODO: Check if it was really disabled
