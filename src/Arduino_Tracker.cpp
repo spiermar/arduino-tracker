@@ -16,10 +16,10 @@ File logfile;
 SoftwareSerial fonaSS = SoftwareSerial(FONA_TX, FONA_RX);     // FONA software serial connection.
 Adafruit_FONA fona = Adafruit_FONA(FONA_RST);                 // FONA library connection.
 
-uint8_t txFailures = 0;                                       // Count of how many publish failures have occured in a row.
+uint8_t httpFailures = 0;                                     // Count of how many publish failures have occured in a row.
 uint8_t gpsFixFailures = 0;                                   // Count of how many GPS fix failures have occured in a row.
-uint8_t gprsFailures = 0;                                     // Count of how many GPS fix failures have occured in a row.
-uint8_t loopFailures = 0;                                     // Count of how many general failures have occured in a row.
+uint8_t gprsFailures = 0;                                     // Count of how many GPRS failures have occured in a row.
+uint8_t loopFailures = 0;                                     // Count of how many loop failures have occured in a row.
 
 float latitude, longitude, speed_kph, heading, altitude;
 char currentTime[23];
@@ -136,10 +136,22 @@ int8_t httpLog() {
   int16_t length;
   char url[] = HTTP_POST_URL;
 
-  if (!fona.HTTP_POST_start(url, F("application/x-www-form-urlencoded"), (uint8_t *) sendbuffer, strlen(sendbuffer), &statuscode, (uint16_t *)&length)) {
-    Serial.println("Failed!");
-    return -1;
+  Serial.println(F("Logging tracker location via HTTP..."));
+
+  while (!fona.HTTP_POST_start(url, F("application/x-www-form-urlencoded"), (uint8_t *) sendbuffer, strlen(sendbuffer), &statuscode, (uint16_t *)&length)) {
+    Serial.println(F("Failed logging tracker..."));
+    httpFailures++;
+
+    // Reset everything if too many GPS fix failures occured in a row.
+    if (httpFailures >= MAX_HTTP_FAILURES) {
+      Serial.println(F("Too many tracker logging failures, aborting..."));
+      return -1;
+    }
+    Serial.println(F("Retrying tracker logging in 10 seconds..."));
+
+    delay(10000);  // wait 10 seconds
   }
+  httpFailures = 0;
   while (length > 0) {
     while (fona.available()) {
       char c = fona.read();
@@ -189,21 +201,22 @@ void sdLog() {
 }
 
 int8_t getGPSFix() {
-  Serial.println(F("Trying to get a GPS fix... "));
+  Serial.println(F("Waiting for FONA GPS 3D fix..."));
 
   while (!fona.getGPS(&latitude, &longitude, &speed_kph, &heading, &altitude)) { // getGPS will return true for 3D fix
-    Serial.println(F("Waiting for FONA GPS 3D fix..."));
+    Serial.println(F("Failed GPS 3D fix..."));
     gpsFixFailures++;
 
     // Reset everything if too many GPS fix failures occured in a row.
     if (gpsFixFailures >= MAX_GPS_FIX_FAILURES) {
-      Serial.println(F("Too many GPS fix failures, aborting..."));
+      Serial.println(F("Too many GPS 3D fix failures, aborting..."));
       return -1;
     }
-    Serial.println(F("Retrying GPS fix in 10 seconds..."));
+    Serial.println(F("Retrying GPS 3D fix in 5 seconds..."));
 
-    delay(10000);  // wait 10 seconds
+    delay(5000);  // wait 5 seconds
   }
+
   Serial.println(F("FONA GPS 3D fix acquired!"));
   gpsFixFailures = 0;
 
