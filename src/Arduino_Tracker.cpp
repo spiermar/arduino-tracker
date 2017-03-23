@@ -136,7 +136,7 @@ int8_t httpLog() {
   int16_t length;
   char url[] = HTTP_POST_URL;
 
-  if (!fona.HTTP_POST_start(url, F("text/plain"), (uint8_t *) sendbuffer, strlen(sendbuffer), &statuscode, (uint16_t *)&length)) {
+  if (!fona.HTTP_POST_start(url, F("application/x-www-form-urlencoded"), (uint8_t *) sendbuffer, strlen(sendbuffer), &statuscode, (uint16_t *)&length)) {
     Serial.println("Failed!");
     return -1;
   }
